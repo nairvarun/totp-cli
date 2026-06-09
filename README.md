@@ -14,6 +14,13 @@ go install github.com/nairvarun/totp-cli/cmd/totp@latest
 totp 'otpauth://totp/Example?secret=JBSWY3DPEHPK3PXP&digits=6&period=30'
 ```
 
+Or with the URI stored in an environment variable:
+
+```bash
+export MY_SERVICE_OTP_URI='otpauth://totp/Example?secret=JBSWY3DPEHPK3PXP&digits=6&period=30'
+totp "$MY_SERVICE_OTP_URI"
+```
+
 Supports SHA1, SHA256, and SHA512 algorithms, configurable digit counts, and configurable periods.
 
 ## License
