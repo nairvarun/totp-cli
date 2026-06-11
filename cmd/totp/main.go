@@ -7,7 +7,6 @@ import (
 	"crypto/sha512"
 	"encoding/base32"
 	"encoding/binary"
-	"flag"
 	"fmt"
 	"hash"
 	"net/url"
@@ -17,70 +16,64 @@ import (
 	"time"
 )
 
-type TOTPConfig struct {
-	secret string
-	digits int
-	period int
-	algo   string
-}
-
 func main() {
-	flag.Parse()
-
-	if flag.NArg() != 1 {
+	if len(os.Args) != 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
-	cfg := TOTPConfig{digits: 6, period: 30, algo: "sha1"}
-	parseOTPAuthURI(flag.Arg(0), &cfg)
-
-	if cfg.secret == "" {
-		printUsage()
+	u, err := url.Parse(os.Args[1])
+	if err != nil || u.Scheme != "otpauth" {
+		fmt.Fprintln(os.Stderr, "invalid otpauth URI")
 		os.Exit(1)
 	}
 
-	fmt.Print(generateTOTP(cfg))
-}
-
-func parseOTPAuthURI(rawURI string, cfg *TOTPConfig) {
-	u, err := url.Parse(rawURI)
-	if err != nil {
-		return
-	}
 	q := u.Query()
-	cfg.secret = strings.ToUpper(strings.TrimSpace(q.Get("secret")))
+	secret := strings.ToUpper(strings.TrimSpace(q.Get("secret")))
+	if secret == "" {
+		fmt.Fprintln(os.Stderr, "missing secret in URI")
+		os.Exit(1)
+	}
 
+	digits := 6
 	if d, err := strconv.Atoi(q.Get("digits")); err == nil {
-		cfg.digits = d
+		digits = d
 	}
 
+	period := 30
 	if p, err := strconv.Atoi(q.Get("period")); err == nil {
-		cfg.period = p
+		period = p
 	}
 
+	algo := "sha1"
 	if a := q.Get("algorithm"); a != "" {
-		cfg.algo = strings.ToLower(a)
+		algo = strings.ToLower(a)
 	}
+
+	code, err := generateTOTP(secret, digits, period, algo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(code)
 }
 
-func generateTOTP(cfg TOTPConfig) string {
-	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.ToUpper(cfg.secret))
+func generateTOTP(secret string, digits, period int, algo string) (string, error) {
+	key, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secret)
 	if err != nil {
-		// try with padding
-		key, err = base32.StdEncoding.DecodeString(strings.ToUpper(cfg.secret))
+		key, err = base32.StdEncoding.DecodeString(secret)
 		if err != nil {
-			return ""
+			return "", fmt.Errorf("invalid secret: %w", err)
 		}
 	}
 
-	counter := time.Now().Unix() / int64(cfg.period)
-
+	counter := time.Now().Unix() / int64(period)
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(counter))
 
 	var h func() hash.Hash
-	switch cfg.algo {
+	switch algo {
 	case "sha256":
 		h = sha256.New
 	case "sha512":
@@ -94,22 +87,21 @@ func generateTOTP(cfg TOTPConfig) string {
 	sum := mac.Sum(nil)
 
 	offset := sum[len(sum)-1] & 0xf
-	code := (int32(sum[offset])&0x7f)<<24 |
-		(int32(sum[offset+1])&0xff)<<16 |
-		(int32(sum[offset+2])&0xff)<<8 |
+	code := int32(sum[offset])&0x7f<<24 |
+		int32(sum[offset+1])&0xff<<16 |
+		int32(sum[offset+2])&0xff<<8 |
 		int32(sum[offset+3])&0xff
 
-	mod := 1
-	for i := 0; i < cfg.digits; i++ {
+	mod := int32(1)
+	for i := 0; i < digits; i++ {
 		mod *= 10
 	}
 
-	return fmt.Sprintf("%0*d", cfg.digits, code%int32(mod))
+	return fmt.Sprintf("%0*d", digits, code%mod), nil
 }
 
-
 func printUsage() {
-	fmt.Fprintf(os.Stderr, "Usage: totp OTPAUTH_URI\n")
-	fmt.Fprintf(os.Stderr, "\nExample:\n")
-	fmt.Fprintf(os.Stderr, "  totp 'otpauth://totp?secret=JBSWY3DPEHPK3PXP&digits=6&period=30'\n")
+	fmt.Fprintln(os.Stderr, "Usage: totp OTPAUTH_URI")
+	fmt.Fprintln(os.Stderr, "\nExample:")
+	fmt.Fprintln(os.Stderr, "  totp 'otpauth://totp?secret=JBSWY3DPEHPK3PXP&digits=6&period=30'")
 }
