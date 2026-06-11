@@ -1,0 +1,23 @@
+cmd/totp/main.go
+  b4d9040a495e24c6 20,25-27,32-36,38,40,43,45,48,50,52-56,58-59,62-63,65,67,71,76,90-92,95-96,100,104-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.23",
+  "base_commit_sha": "462665372018f29e585f7036318b7bcaa3ca9add",
+  "prompts": {
+    "b4d9040a495e24c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78aa5220-aa0a-454f-adf4-c713ab198cec",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Varun Nair <nairvarun104@gmail.com>",
+      "messages": [],
+      "total_additions": 38,
+      "total_deletions": 46,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    }
+  }
+}
